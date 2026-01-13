@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cat Tracker - Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getDatabase, ref, set, onValue, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyCa3lwgs9FV93eAuLWC69mqBN8aJgemjnQ",
+      authDomain: "cat-tracker-dcb5b.firebaseapp.com",
+      databaseURL: "https://cat-tracker-dcb5b-default-rtdb.firebaseio.com",
+      projectId: "cat-tracker-dcb5b",
+      storageBucket: "cat-tracker-dcb5b.firebasestorage.app",
+      messagingSenderId: "974993799846",
+      appId: "1:974993799846:web:953ae8814dc6bcfe595267"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    const DEFAULT_LOCATIONS = ['Inside', 'Outside', 'Living Room', 'Bedroom', 'Kitchen', 'Unknown'];
+    const DEFAULT_CATS = {
+      pepper: { name: 'Pepper', location: 'Unknown', updatedAt: null, updatedBy: null },
+      nori: { name: 'Nori', location: 'Unknown', updatedAt: null, updatedBy: null }
+    };
+
+    let cats = DEFAULT_CATS;
+    let locations = DEFAULT_LOCATIONS;
+    let selectedCat = null;
+    let showSettings = false;
+    let reminderCheckInterval = null;
+
+    async function loadData() {
+      try {
+        const catsRef = ref(database, 'cats');
+        const catsSnapshot = await get(catsRef);
+        if (catsSnapshot.exists()) {
+          cats = catsSnapshot.val();
+        } else {
+          await set(catsRef, DEFAULT_CATS);
+        }
+
+        const locationsRef = ref(database, 'locations');
+        const locationsSnapshot = await get(locationsRef);
+        if (locationsSnapshot.exists()) {
+          locations = locationsSnapshot.val();
+        } else {
+          await set(locationsRef, DEFAULT_LOCATIONS);
+        }
+      } catch (e) {
+        console.error('Failed to load data:', e);
+      }
+      render();
+    }
+
+    function setupRealtimeListeners() {
+      const catsRef = ref(database, 'cats');
+      onValue(catsRef, (snapshot) => {
+        if (snapshot.exists()) {
+          cats = snapshot.val();
+          render();
+        }
+      });
+
+      const locationsRef = ref(database, 'locations');
+      onValue(locationsRef, (snapshot) => {
+        if (snapshot.exists()) {
+          locations = snapshot.val();
+          render();
+        }
+      });
+    }
+
+    async function updateCatLocation(catId, location) {
+      const updatedCat = {
+        ...cats[catId],
+        location,
+        updatedAt: new Date().toISOString()
+      };
+
+      selectedCat = null;
+
+      try {
+        const catRef = ref(database, `cats/${catId}`);
+        await set(catRef, updatedCat);
+      } catch (e) {
+        console.error('Failed to save:', e);
+      }
+    }
+
+    async function addLocation() {
+      const input = document.getElementById('newLocation');
+      const newLocation = input.value.trim();
+      if (!newLocation || locations.includes(newLocation)) return;
+
+      const updatedLocations = [...locations, newLocation];
+      input.value = '';
+
+      try {
+        const locationsRef = ref(database, 'locations');
+        await set(locationsRef, updatedLocations);
+      } catch (e) {
+        console.error('Failed to save location:', e);
+      }
+    }
+
+    async function removeLocation(loc) {
+      if (locations.length <= 1) return;
+
+      const updatedLocations = locations.filter(l => l !== loc);
+
+      try {
+        const locationsRef = ref(database, 'locations');
+        await set(locationsRef, updatedLocations);
+      } catch (e) {
+        console.error('Failed to remove location:', e);
+      }
+    }
+
+    function formatTime(isoString) {
+      if (!isoString) return 'Never updated';
+      const date = new Date(isoString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return date.toLocaleDateString();
+    }
+
+    function getCatEmoji(name) {
+      return name === 'Pepper' ? '🐈‍⬛' : '🐱';
+    }
+
+    function needsReminder(cat) {
+      if (!cat.updatedAt) return false;
+      const now = new Date();
+      const lastUpdate = new Date(cat.updatedAt);
+      const diffMinutes = Math.floor((now - lastUpdate) / 60000);
+      return diffMinutes >= 30;
+    }
+
+    function checkReminders() {
+      Object.entries(cats).forEach(([id, cat]) => {
+        if (needsReminder(cat) && cat.location === 'Outside') {
+          showReminderNotification(cat.name, id);
+        }
+      });
+    }
+
+    function showReminderNotification(catName, catId) {
+      if (Notification.permission === 'granted') {
+        const notification = new Notification(`Is ${catName} still outside?`, {
+          body: `${catName} has been outside for 30+ minutes. Tap to update location.`,
+          icon: '🐱',
+          tag: catId,
+          requireInteraction: true
+        });
+
+        notification.onclick = function() {
+          window.focus();
+          selectedCat = catId;
+          render();
+          notification.close();
+        };
+      }
+    }
+
+    function requestNotificationPermission() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    function render() {
+      const root = document.getElementById('root');
+
+      // Check for cats that need reminders
+      const catsNeedingReminders = Object.entries(cats).filter(([id, cat]) =>
+        needsReminder(cat) && cat.location === 'Outside'
+      );
+
+      root.innerHTML = `
+        <div class="min-h-screen bg-amber-50 p-4">
+          <div class="max-w-md mx-auto">
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-6">
+              <h1 class="text-2xl font-bold text-amber-900">🐾 Cat Tracker</h1>
+              <button
+                onclick="toggleSettings()"
+                class="p-2 rounded-lg bg-amber-200 hover:bg-amber-300 transition-colors"
+              >
+                ⚙️
+              </button>
+            </div>
+
+            <!-- Reminder Alerts -->
+            ${catsNeedingReminders.map(([id, cat]) => `
+              <div class="mb-4 p-4 bg-orange-100 border-2 border-orange-400 rounded-xl">
+                <div class="flex items-center gap-3 mb-3">
+                  <span class="text-2xl">${getCatEmoji(cat.name)}</span>
+                  <div class="flex-1">
+                    <h3 class="font-semibold text-orange-900">Is ${cat.name} still outside?</h3>
+                    <p class="text-sm text-orange-700">${cat.name} has been outside for ${Math.floor((new Date() - new Date(cat.updatedAt)) / 60000)} minutes</p>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    onclick="updateCatLocation('${id}', 'Outside')"
+                    class="flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium text-sm"
+                  >
+                    ✓ Still Outside
+                  </button>
+                  <button
+                    onclick="toggleCat('${id}')"
+                    class="flex-1 py-2 px-4 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium text-sm"
+                  >
+                    Update Location
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+
+            <!-- Settings Panel -->
+            ${showSettings ? `
+              <div class="mb-6 p-4 bg-white rounded-xl shadow-sm border border-amber-200">
+                <h2 class="font-semibold text-amber-900 mb-3">Manage Locations</h2>
+
+                <div class="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    id="newLocation"
+                    placeholder="Add new location..."
+                    class="flex-1 px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    onkeydown="if(event.key === 'Enter') addLocation()"
+                  />
+                  <button
+                    onclick="addLocation()"
+                    class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  ${locations.map(loc => `
+                    <span class="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm">
+                      ${loc}
+                      <button
+                        onclick="removeLocation('${loc}')"
+                        class="ml-1 text-amber-600 hover:text-red-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  `).join('')}
+                </div>
+
+                <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                  ✓ Real-time sync enabled
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Cat Cards -->
+            <div class="space-y-4">
+              ${Object.entries(cats).map(([id, cat]) => `
+                <div class="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
+                  <button
+                    onclick="toggleCat('${id}')"
+                    class="w-full p-4 text-left hover:bg-amber-50 transition-colors"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <span class="text-3xl">${getCatEmoji(cat.name)}</span>
+                        <div>
+                          <h2 class="text-lg font-semibold text-amber-900">${cat.name}</h2>
+                          <p class="text-sm text-amber-600">${formatTime(cat.updatedAt)}</p>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <span class="inline-block px-3 py-1 bg-amber-100 text-amber-800 rounded-full font-medium">
+                          ${cat.location}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  ${selectedCat === id ? `
+                    <div class="border-t border-amber-200 p-4 bg-amber-50">
+                      <p class="text-sm text-amber-700 mb-3">Where is ${cat.name}?</p>
+                      <div class="grid grid-cols-2 gap-2">
+                        ${locations.map(loc => `
+                          <button
+                            onclick="updateCatLocation('${id}', '${loc}')"
+                            class="py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
+                              cat.location === loc
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-100'
+                            }"
+                          >
+                            ${loc}
+                          </button>
+                        `).join('')}
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- Footer -->
+            <p class="text-center text-amber-600 text-xs mt-6">
+              Tap a cat to update their location
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    window.toggleSettings = function() {
+      showSettings = !showSettings;
+      render();
+    };
+
+    window.toggleCat = function(catId) {
+      selectedCat = selectedCat === catId ? null : catId;
+      render();
+    };
+
+    window.updateCatLocation = updateCatLocation;
+    window.addLocation = addLocation;
+    window.removeLocation = removeLocation;
+
+    // Initialize
+    loadData();
+    setupRealtimeListeners();
+
+    // Request notification permission on load
+    requestNotificationPermission();
+
+    // Check for reminders every minute
+    reminderCheckInterval = setInterval(() => {
+      checkReminders();
+      render(); // Re-render to show in-app alerts
+    }, 60000);
+  </script>
+</body>
+</html>

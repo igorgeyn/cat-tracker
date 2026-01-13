@@ -22,7 +22,23 @@ export default function CatTracker() {
   useEffect(() => {
     loadData();
     setupRealtimeListeners();
+    requestNotificationPermission();
+
+    // Check for reminders every minute
+    const reminderInterval = setInterval(() => {
+      checkReminders();
+    }, 60000);
+
+    return () => clearInterval(reminderInterval);
   }, []);
+
+  // Re-check reminders when cats data changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Force re-render to show in-app alerts
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [cats]);
 
   const loadData = async () => {
     try {
@@ -135,6 +151,49 @@ export default function CatTracker() {
     return name === 'Pepper' ? '🐈‍⬛' : '🐱';
   };
 
+  const needsReminder = (cat) => {
+    if (!cat.updatedAt) return false;
+    const now = new Date();
+    const lastUpdate = new Date(cat.updatedAt);
+    const diffMinutes = Math.floor((now - lastUpdate) / 60000);
+    return diffMinutes >= 30;
+  };
+
+  const checkReminders = () => {
+    Object.entries(cats).forEach(([id, cat]) => {
+      if (needsReminder(cat) && cat.location === 'Outside') {
+        showReminderNotification(cat.name, id);
+      }
+    });
+  };
+
+  const showReminderNotification = (catName, catId) => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      const notification = new Notification(`Is ${catName} still outside?`, {
+        body: `${catName} has been outside for 30+ minutes. Tap to update location.`,
+        icon: '🐱',
+        tag: catId,
+        requireInteraction: true
+      });
+
+      notification.onclick = function() {
+        window.focus();
+        setSelectedCat(catId);
+        notification.close();
+      };
+    }
+  };
+
+  const requestNotificationPermission = () => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  };
+
+  const catsNeedingReminders = Object.entries(cats).filter(([id, cat]) =>
+    needsReminder(cat) && cat.location === 'Outside'
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-amber-50 flex items-center justify-center">
@@ -163,6 +222,35 @@ export default function CatTracker() {
             <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
           </div>
         )}
+
+        {/* Reminder Alerts */}
+        {catsNeedingReminders.map(([id, cat]) => (
+          <div key={id} className="mb-4 p-4 bg-orange-100 border-2 border-orange-400 rounded-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">{getCatEmoji(cat.name)}</span>
+              <div className="flex-1">
+                <h3 className="font-semibold text-orange-900">Is {cat.name} still outside?</h3>
+                <p className="text-sm text-orange-700">
+                  {cat.name} has been outside for {Math.floor((new Date() - new Date(cat.updatedAt)) / 60000)} minutes
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateCatLocation(id, 'Outside')}
+                className="flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium text-sm"
+              >
+                ✓ Still Outside
+              </button>
+              <button
+                onClick={() => setSelectedCat(selectedCat === id ? null : id)}
+                className="flex-1 py-2 px-4 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium text-sm"
+              >
+                Update Location
+              </button>
+            </div>
+          </div>
+        ))}
 
         {/* Settings Panel */}
         {showSettings && (

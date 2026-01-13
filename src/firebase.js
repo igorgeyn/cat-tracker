@@ -2,15 +2,14 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
 // Firebase configuration
-// Replace these values with your own Firebase project credentials
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCa3lwgs9FV93eAuLWC69mqBN8aJgemjnQ",
+  authDomain: "cat-tracker-dcb5b.firebaseapp.com",
+  databaseURL: "https://cat-tracker-dcb5b-default-rtdb.firebaseio.com",
+  projectId: "cat-tracker-dcb5b",
+  storageBucket: "cat-tracker-dcb5b.firebasestorage.app",
+  messagingSenderId: "974993799846",
+  appId: "1:974993799846:web:953ae8814dc6bcfe595267"
 };
 
 // Initialize Firebase
