@@ -1,102 +1,84 @@
 import React, { useState, useEffect } from 'react';
-import { ref, set, onValue, get } from 'firebase/database';
-import { database } from './firebase';
+import { ref, set, onValue } from 'firebase/database';
+import { signOut } from 'firebase/auth';
+import { database, auth } from './firebase';
 
-const DEFAULT_LOCATIONS = ['Inside', 'Outside', 'Living Room', 'Bedroom', 'Kitchen', 'Unknown'];
-
-const DEFAULT_CATS = {
-  pepper: { name: 'Pepper', location: 'Unknown', updatedAt: null, updatedBy: null },
-  nori: { name: 'Nori', location: 'Unknown', updatedAt: null, updatedBy: null }
-};
-
-export default function CatTracker() {
-  const [cats, setCats] = useState(DEFAULT_CATS);
-  const [locations, setLocations] = useState(DEFAULT_LOCATIONS);
+export default function CatTracker({ user, householdId }) {
+  const [cats, setCats] = useState({});
+  const [locations, setLocations] = useState([]);
+  const [householdName, setHouseholdName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedCat, setSelectedCat] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [newLocation, setNewLocation] = useState('');
   const [error, setError] = useState(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
-  // Load data on mount and set up real-time listeners
   useEffect(() => {
-    loadData();
-    setupRealtimeListeners();
+    const unsubscribers = setupRealtimeListeners();
     requestNotificationPermission();
 
-    // Check for reminders every minute
     const reminderInterval = setInterval(() => {
       checkReminders();
     }, 60000);
 
-    return () => clearInterval(reminderInterval);
-  }, []);
-
-  // Re-check reminders when cats data changes
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Force re-render to show in-app alerts
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [cats]);
-
-  const loadData = async () => {
-    try {
-      // Load cats
-      const catsRef = ref(database, 'cats');
-      const catsSnapshot = await get(catsRef);
-      if (catsSnapshot.exists()) {
-        setCats(catsSnapshot.val());
-      } else {
-        // Initialize with defaults if doesn't exist
-        await set(catsRef, DEFAULT_CATS);
-      }
-
-      // Load locations
-      const locationsRef = ref(database, 'locations');
-      const locationsSnapshot = await get(locationsRef);
-      if (locationsSnapshot.exists()) {
-        setLocations(locationsSnapshot.val());
-      } else {
-        // Initialize with defaults if doesn't exist
-        await set(locationsRef, DEFAULT_LOCATIONS);
-      }
-    } catch (e) {
-      console.error('Failed to load data:', e);
-      setError('Failed to load data. Check Firebase configuration.');
-    }
-    setLoading(false);
-  };
+    return () => {
+      clearInterval(reminderInterval);
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [householdId]);
 
   const setupRealtimeListeners = () => {
+    const unsubscribers = [];
+
     // Listen for cat updates
-    const catsRef = ref(database, 'cats');
-    onValue(catsRef, (snapshot) => {
+    const catsRef = ref(database, `households/${householdId}/cats`);
+    const unsubCats = onValue(catsRef, (snapshot) => {
       if (snapshot.exists()) {
         setCats(snapshot.val());
       }
+      setLoading(false);
     });
+    unsubscribers.push(unsubCats);
 
     // Listen for location updates
-    const locationsRef = ref(database, 'locations');
-    onValue(locationsRef, (snapshot) => {
+    const locationsRef = ref(database, `households/${householdId}/locations`);
+    const unsubLocations = onValue(locationsRef, (snapshot) => {
       if (snapshot.exists()) {
         setLocations(snapshot.val());
       }
     });
+    unsubscribers.push(unsubLocations);
+
+    // Listen for household info
+    const nameRef = ref(database, `households/${householdId}/name`);
+    const unsubName = onValue(nameRef, (snapshot) => {
+      if (snapshot.exists()) setHouseholdName(snapshot.val());
+    });
+    unsubscribers.push(unsubName);
+
+    const codeRef = ref(database, `households/${householdId}/inviteCode`);
+    const unsubCode = onValue(codeRef, (snapshot) => {
+      if (snapshot.exists()) setInviteCode(snapshot.val());
+    });
+    unsubscribers.push(unsubCode);
+
+    return unsubscribers;
   };
 
   const updateCatLocation = async (catId, location) => {
     const updatedCat = {
       ...cats[catId],
       location,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.displayName || user.email
     };
 
     setSelectedCat(null);
 
     try {
-      const catRef = ref(database, `cats/${catId}`);
+      const catRef = ref(database, `households/${householdId}/cats/${catId}`);
       await set(catRef, updatedCat);
     } catch (e) {
       console.error('Failed to save:', e);
@@ -111,7 +93,7 @@ export default function CatTracker() {
     setNewLocation('');
 
     try {
-      const locationsRef = ref(database, 'locations');
+      const locationsRef = ref(database, `households/${householdId}/locations`);
       await set(locationsRef, updatedLocations);
     } catch (e) {
       console.error('Failed to save location:', e);
@@ -125,12 +107,23 @@ export default function CatTracker() {
     const updatedLocations = locations.filter(l => l !== loc);
 
     try {
-      const locationsRef = ref(database, 'locations');
+      const locationsRef = ref(database, `households/${householdId}/locations`);
       await set(locationsRef, updatedLocations);
     } catch (e) {
       console.error('Failed to remove location:', e);
       setError('Failed to remove location');
     }
+  };
+
+  const copyInviteCode = () => {
+    navigator.clipboard.writeText(inviteCode).then(() => {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    });
+  };
+
+  const handleSignOut = () => {
+    signOut(auth);
   };
 
   const formatTime = (isoString) => {
@@ -147,8 +140,8 @@ export default function CatTracker() {
     return date.toLocaleDateString();
   };
 
-  const getCatEmoji = (name) => {
-    return name === 'Pepper' ? '🐈‍⬛' : '🐱';
+  const getCatEmoji = (cat) => {
+    return cat.emoji || '🐱';
   };
 
   const needsReminder = (cat) => {
@@ -171,7 +164,6 @@ export default function CatTracker() {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       const notification = new Notification(`Is ${catName} still outside?`, {
         body: `${catName} has been outside for 30+ minutes. Tap to update location.`,
-        icon: '🐱',
         tag: catId,
         requireInteraction: true
       });
@@ -207,7 +199,10 @@ export default function CatTracker() {
       <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-amber-900">🐾 Cat Tracker</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-amber-900">🐾 Cat Tracker</h1>
+            <p className="text-xs text-amber-600">{householdName}</p>
+          </div>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="p-2 rounded-lg bg-amber-200 hover:bg-amber-300 transition-colors"
@@ -227,7 +222,7 @@ export default function CatTracker() {
         {catsNeedingReminders.map(([id, cat]) => (
           <div key={id} className="mb-4 p-4 bg-orange-100 border-2 border-orange-400 rounded-xl">
             <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl">{getCatEmoji(cat.name)}</span>
+              <span className="text-2xl">{getCatEmoji(cat)}</span>
               <div className="flex-1">
                 <h3 className="font-semibold text-orange-900">Is {cat.name} still outside?</h3>
                 <p className="text-sm text-orange-700">
@@ -255,7 +250,24 @@ export default function CatTracker() {
         {/* Settings Panel */}
         {showSettings && (
           <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-amber-200">
-            <h2 className="font-semibold text-amber-900 mb-3">Manage Locations</h2>
+            <h2 className="font-semibold text-amber-900 mb-3">Settings</h2>
+
+            {/* Invite Code */}
+            <div className="mb-4 p-3 bg-amber-50 rounded-lg">
+              <p className="text-xs text-amber-700 mb-1">Invite code (share with family)</p>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-mono font-bold text-amber-900 tracking-widest">{inviteCode}</span>
+                <button
+                  onClick={copyInviteCode}
+                  className="text-xs px-2 py-1 bg-amber-200 rounded hover:bg-amber-300 transition-colors"
+                >
+                  {copiedCode ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            {/* Manage Locations */}
+            <h3 className="text-sm font-medium text-amber-800 mb-2">Manage Locations</h3>
 
             <div className="flex gap-2 mb-3">
               <input
@@ -274,7 +286,7 @@ export default function CatTracker() {
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 mb-4">
               {locations.map(loc => (
                 <span
                   key={loc}
@@ -291,8 +303,17 @@ export default function CatTracker() {
               ))}
             </div>
 
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-              ✓ Real-time sync enabled
+            {/* Account */}
+            <div className="border-t border-amber-200 pt-3 mt-3">
+              <p className="text-xs text-amber-600 mb-2">
+                Signed in as {user.displayName || user.email}
+              </p>
+              <button
+                onClick={handleSignOut}
+                className="w-full py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         )}
@@ -310,10 +331,13 @@ export default function CatTracker() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl">{getCatEmoji(cat.name)}</span>
+                    <span className="text-3xl">{getCatEmoji(cat)}</span>
                     <div>
                       <h2 className="text-lg font-semibold text-amber-900">{cat.name}</h2>
-                      <p className="text-sm text-amber-600">{formatTime(cat.updatedAt)}</p>
+                      <p className="text-sm text-amber-600">
+                        {formatTime(cat.updatedAt)}
+                        {cat.updatedBy && <span className="text-amber-400"> · {cat.updatedBy}</span>}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">

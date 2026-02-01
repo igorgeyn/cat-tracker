@@ -1,0 +1,22 @@
+{
+  "rules": {
+    "households": {
+      "$householdId": {
+        ".read": "root.child('households').child($householdId).child('members').child(auth.uid).exists()",
+        ".write": "root.child('households').child($householdId).child('members').child(auth.uid).exists() || !data.exists()"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth.uid === $uid",
+        ".write": "auth.uid === $uid"
+      }
+    },
+    "inviteCodes": {
+      ".read": "auth.uid !== null",
+      "$code": {
+        ".write": "auth.uid !== null"
+      }
+    }
+  }
+}
