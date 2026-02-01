@@ -17,6 +17,10 @@
       "$code": {
         ".write": "auth.uid !== null"
       }
+    },
+    "aggregateStats": {
+      ".read": true,
+      ".write": "auth.uid !== null"
     }
   }
 }

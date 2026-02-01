@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, increment, update } from 'firebase/database';
 import { signOut } from 'firebase/auth';
 import { database, auth } from './firebase';
 
@@ -80,6 +80,24 @@ export default function CatTracker({ user, householdId }) {
     try {
       const catRef = ref(database, `households/${householdId}/cats/${catId}`);
       await set(catRef, updatedCat);
+
+      // Log anonymous aggregate stats (no identifying info)
+      const previousLocation = cats[catId]?.location;
+      const hour = new Date().getHours();
+      const statsUpdates = {};
+      statsUpdates['aggregateStats/totalTransitions'] = increment(1);
+      statsUpdates[`aggregateStats/transitionsByLocation/${location}`] = increment(1);
+      statsUpdates[`aggregateStats/transitionsByHour/${hour}`] = increment(1);
+      if (location === 'Outside') {
+        statsUpdates['aggregateStats/outsideSessions/totalCount'] = increment(1);
+      }
+      if (previousLocation === 'Outside' && location !== 'Outside' && cats[catId]?.updatedAt) {
+        const minutes = Math.floor((Date.now() - new Date(cats[catId].updatedAt).getTime()) / 60000);
+        if (minutes > 0 && minutes < 1440) {
+          statsUpdates['aggregateStats/outsideSessions/totalMinutes'] = increment(minutes);
+        }
+      }
+      update(ref(database), statsUpdates).catch(() => {});
     } catch (e) {
       console.error('Failed to save:', e);
       setError('Failed to save location update');

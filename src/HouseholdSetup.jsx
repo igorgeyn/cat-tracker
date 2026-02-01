@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ref, set, get, push } from 'firebase/database';
+import { ref, set, get, push, increment, update } from 'firebase/database';
 import { database } from './firebase';
 
 const EMOJI_OPTIONS = ['🐱', '🐈', '🐈‍⬛', '🐾', '😺', '😸', '🙀', '😻'];
@@ -12,6 +12,7 @@ export default function HouseholdSetup({ user, onComplete }) {
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [emojiPickerIndex, setEmojiPickerIndex] = useState(null);
 
   const addCat = () => {
     setCats([...cats, { name: '', emoji: '🐱' }]);
@@ -89,6 +90,12 @@ export default function HouseholdSetup({ user, onComplete }) {
 
       // Store invite code mapping for lookups
       await set(ref(database, `inviteCodes/${code}`), householdId);
+
+      // Anonymous aggregate stats
+      update(ref(database), {
+        'aggregateStats/householdCount': increment(1),
+        'aggregateStats/catCount': increment(validCats.length)
+      }).catch(() => {});
 
       onComplete(householdId);
     } catch (e) {
@@ -232,17 +239,29 @@ export default function HouseholdSetup({ user, onComplete }) {
 
           <div className="space-y-3 mb-3">
             {cats.map((cat, index) => (
-              <div key={index} className="flex gap-2 items-center">
+              <div key={index} className="flex gap-2 items-start">
                 <div className="relative">
-                  <select
-                    value={cat.emoji}
-                    onChange={(e) => updateCat(index, 'emoji', e.target.value)}
-                    className="appearance-none w-12 h-10 text-xl text-center bg-amber-50 border border-amber-300 rounded-lg cursor-pointer"
+                  <button
+                    type="button"
+                    onClick={() => setEmojiPickerIndex(emojiPickerIndex === index ? null : index)}
+                    className="w-12 h-10 text-xl text-center bg-amber-50 border border-amber-300 rounded-lg cursor-pointer hover:bg-amber-100"
                   >
-                    {EMOJI_OPTIONS.map(e => (
-                      <option key={e} value={e}>{e}</option>
-                    ))}
-                  </select>
+                    {cat.emoji}
+                  </button>
+                  {emojiPickerIndex === index && (
+                    <div className="absolute top-11 left-0 z-10 bg-white border border-amber-300 rounded-lg shadow-lg p-2 grid grid-cols-4 gap-1">
+                      {EMOJI_OPTIONS.map(e => (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() => { updateCat(index, 'emoji', e); setEmojiPickerIndex(null); }}
+                          className={`w-10 h-10 text-xl rounded hover:bg-amber-100 ${cat.emoji === e ? 'bg-amber-200' : ''}`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <input
                   type="text"
