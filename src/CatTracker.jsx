@@ -4,6 +4,14 @@ import { signOut } from 'firebase/auth';
 import { database, auth } from './firebase';
 
 const EMOJI_OPTIONS = ['🐱', '🐈', '🐈‍⬛', '🐾', '😺', '😸', '🙀', '😻'];
+const MAP_ZONE_STYLES = [
+  'bg-amber-50 border-amber-200',
+  'bg-sky-50 border-sky-200',
+  'bg-emerald-50 border-emerald-200',
+  'bg-rose-50 border-rose-200',
+  'bg-violet-50 border-violet-200',
+  'bg-lime-50 border-lime-200'
+];
 
 export default function CatTracker({ user, householdId }) {
   const [cats, setCats] = useState({});
@@ -308,6 +316,25 @@ export default function CatTracker({ user, householdId }) {
   );
   const activeCats = Object.entries(cats).filter(([, cat]) => !cat.memorialized);
   const memorialCats = Object.entries(cats).filter(([, cat]) => cat.memorialized);
+  const mapLocationNames = [
+    ...locations,
+    ...activeCats
+      .map(([, cat]) => cat.location)
+      .filter(location => location && !locations.includes(location))
+  ];
+  const catsByLocation = activeCats.reduce((groups, [id, cat]) => {
+    const location = cat.location || 'Unknown';
+    return {
+      ...groups,
+      [location]: [...(groups[location] || []), [id, cat]]
+    };
+  }, {});
+  const getMapZoneStyle = (location, index) => {
+    const normalized = location.toLowerCase();
+    if (normalized === 'outside') return 'bg-emerald-50 border-emerald-300';
+    if (normalized === 'unknown') return 'bg-stone-50 border-stone-200';
+    return MAP_ZONE_STYLES[index % MAP_ZONE_STYLES.length];
+  };
 
   if (loading) {
     return (
@@ -621,6 +648,47 @@ export default function CatTracker({ user, householdId }) {
             </div>
           ))}
         </div>
+
+        {activeCats.length > 0 && mapLocationNames.length > 0 && (
+          <div className="mt-6 bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-amber-200">
+              <h2 className="text-sm font-semibold text-amber-900">House Map</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-2 p-3 bg-amber-50">
+              {mapLocationNames.map((location, index) => {
+                const locationCats = catsByLocation[location] || [];
+                return (
+                  <div
+                    key={location}
+                    className={`min-h-24 rounded-lg border p-3 ${getMapZoneStyle(location, index)}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-amber-900 leading-tight">{location}</h3>
+                      <span className="text-xs text-amber-600">{locationCats.length || ''}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {locationCats.length > 0 ? (
+                        locationCats.map(([id, cat]) => (
+                          <button
+                            key={id}
+                            onClick={() => setSelectedCat(selectedCat === id ? null : id)}
+                            className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-white px-2 py-1 text-sm text-amber-900 shadow-sm"
+                            aria-label={`Update ${cat.name}`}
+                          >
+                            <span>{getCatEmoji(cat)}</span>
+                            <span className="max-w-20 truncate">{cat.name}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <span className="text-xs text-amber-500">Empty</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {memorialCats.length > 0 && (
           <div className="mt-6 border-t border-amber-200 pt-5">
