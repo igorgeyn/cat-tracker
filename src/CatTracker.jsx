@@ -17,40 +17,40 @@ const MAP_LOCATION_ORDER = [
 ];
 const HOUSE_MAP_PLACEMENTS = {
   outside: {
-    style: { left: '4%', top: '4%', width: '92%', height: '18%' },
-    className: 'bg-emerald-100 border-emerald-300'
+    style: { left: '5%', top: '5%', width: '90%', height: '16%' },
+    className: 'bg-[#efe0b7]/55 border-[#7a441d]/45 border-dashed'
   },
   sideyard: {
-    style: { left: '77%', top: '25%', width: '19%', height: '47%' },
-    className: 'bg-sky-100 border-sky-300'
+    style: { left: '78%', top: '27%', width: '17%', height: '43%' },
+    className: 'bg-[#f4e7c4]/45 border-[#7a441d]/45'
   },
   'catio closed': {
-    style: { left: '4%', top: '75%', width: '43%', height: '18%' },
-    className: 'bg-lime-100 border-lime-300'
+    style: { left: '5%', top: '75%', width: '35%', height: '16%' },
+    className: 'bg-[#f4e7c4]/45 border-[#7a441d]/45'
   },
   catio: {
-    style: { left: '4%', top: '75%', width: '43%', height: '18%' },
-    className: 'bg-lime-100 border-lime-300'
+    style: { left: '5%', top: '75%', width: '35%', height: '16%' },
+    className: 'bg-[#f4e7c4]/45 border-[#7a441d]/45'
   },
   inside: {
-    style: { left: '4%', top: '25%', width: '20%', height: '47%' },
-    className: 'bg-amber-50 border-amber-300'
+    style: { left: '8%', top: '30%', width: '15%', height: '36%' },
+    className: 'bg-[#fff8e5]/65 border-[#7a441d]/50'
   },
   'living room': {
-    style: { left: '26%', top: '25%', width: '29%', height: '30%' },
-    className: 'bg-orange-50 border-orange-300'
+    style: { left: '26%', top: '30%', width: '27%', height: '24%' },
+    className: 'bg-[#fff8e5]/65 border-[#7a441d]/50'
   },
   kitchen: {
-    style: { left: '26%', top: '57%', width: '29%', height: '15%' },
-    className: 'bg-violet-50 border-violet-300'
+    style: { left: '26%', top: '57%', width: '27%', height: '14%' },
+    className: 'bg-[#fff8e5]/65 border-[#7a441d]/50'
   },
   bedroom: {
-    style: { left: '57%', top: '25%', width: '18%', height: '47%' },
-    className: 'bg-rose-50 border-rose-300'
+    style: { left: '56%', top: '30%', width: '19%', height: '41%' },
+    className: 'bg-[#fff8e5]/65 border-[#7a441d]/50'
   },
   unknown: {
-    style: { left: '49%', top: '75%', width: '47%', height: '18%' },
-    className: 'bg-stone-50 border-stone-300'
+    style: { left: '43%', top: '75%', width: '52%', height: '16%' },
+    className: 'bg-[#efe0b7]/40 border-[#7a441d]/35 border-dashed'
   }
 };
 const FALLBACK_MAP_PLACEMENTS = [
@@ -397,7 +397,7 @@ export default function CatTracker({ user, householdId }) {
 
     return {
       style: FALLBACK_MAP_PLACEMENTS[index % FALLBACK_MAP_PLACEMENTS.length],
-      className: 'bg-amber-50 border-amber-300'
+      className: 'bg-[#fff8e5]/60 border-[#7a441d]/45'
     };
   };
 
@@ -715,14 +715,17 @@ export default function CatTracker({ user, householdId }) {
         </div>
 
         {activeCats.length > 0 && orderedMapLocationNames.length > 0 && (
-          <div className="mt-6 bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-amber-200">
-              <h2 className="text-sm font-semibold text-amber-900">House Map</h2>
+          <div className="mt-6 rounded-xl shadow-sm border border-amber-300 overflow-hidden bg-[#f7edcf]">
+            <div className="px-4 py-3 border-b border-amber-300">
+              <h2 className="text-sm font-semibold text-amber-950">House Map</h2>
             </div>
-            <div className="p-3 bg-amber-50">
-              <div className="relative aspect-[4/3] min-h-72 rounded-xl border-2 border-amber-300 bg-[#f8edd6] shadow-inner overflow-hidden">
-                <div className="absolute left-[2%] top-[2%] h-[96%] w-[96%] rounded-lg border border-dashed border-amber-300 pointer-events-none" />
-                <div className="absolute left-[24%] top-[23%] h-[51%] w-[53%] rounded-sm border-4 border-amber-700/40 bg-white/25 pointer-events-none" />
+            <div className="p-4 bg-[#f7edcf]">
+              <div className="relative aspect-[4/3] min-h-72 rounded-xl border border-[#7a441d]/35 bg-[#ead8ad] shadow-inner overflow-hidden">
+                <div className="absolute inset-3 rounded-lg border border-dashed border-[#7a441d]/35 pointer-events-none" />
+                <div className="absolute left-[24%] top-[27%] h-[47%] w-[53%] rounded-sm border-[6px] border-[#7a441d]/45 bg-[#fff7df]/25 pointer-events-none" />
+                <div className="absolute left-[15%] top-[23%] text-[#7a441d]/20 text-lg rotate-[-18deg] pointer-events-none">∙∙∙</div>
+                <div className="absolute left-[44%] top-[22%] text-[#7a441d]/20 text-lg rotate-[12deg] pointer-events-none">∙∙∙</div>
+                <div className="absolute left-[70%] top-[72%] text-[#7a441d]/20 text-lg rotate-[-10deg] pointer-events-none">∙∙∙</div>
                 {orderedMapLocationNames.map((location, index) => {
                 const locationCats = catsByLocation[location] || [];
                 const zone = getMapZone(location, index);
@@ -730,27 +733,24 @@ export default function CatTracker({ user, householdId }) {
                   <div
                     key={location}
                     style={zone.style}
-                    className={`absolute rounded-lg border-2 p-2 shadow-sm ${zone.className}`}
+                    className={`absolute rounded-md border-2 p-2 ${zone.className}`}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <h3 className="text-xs font-semibold text-amber-900 leading-tight">{location}</h3>
-                      <span className="text-xs text-amber-600">{locationCats.length || ''}</span>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#6f3717] leading-tight">{location}</h3>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1">
-                      {locationCats.length > 0 ? (
+                      {locationCats.length > 0 && (
                         locationCats.map(([id, cat]) => (
                           <button
                             key={id}
                             onClick={() => setSelectedCat(selectedCat === id ? null : id)}
-                            className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/90 border border-white px-2 py-1 text-xs text-amber-900 shadow-sm"
+                            className="inline-flex max-w-full items-center gap-1 rounded-full bg-[#5b2d14] px-2 py-1 text-xs text-[#fff6df] shadow-sm"
                             aria-label={`Update ${cat.name}`}
                           >
                             <span>{getCatEmoji(cat)}</span>
                             <span className="max-w-16 truncate">{cat.name}</span>
                           </button>
                         ))
-                      ) : (
-                        <span className="text-xs text-amber-500">Empty</span>
                       )}
                     </div>
                   </div>
