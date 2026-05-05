@@ -202,6 +202,22 @@ export default function CatTracker({ user, householdId }) {
     }
   };
 
+  const toggleCatMemorial = async (catId, cat) => {
+    const isMemorialized = Boolean(cat.memorialized);
+    const message = isMemorialized
+      ? `Move ${cat.name} back to active tracking?`
+      : `Memorialize ${cat.name}? They will move out of active tracking.`;
+    const confirmed = window.confirm(message);
+    if (!confirmed) return;
+
+    const updates = isMemorialized
+      ? { memorialized: false, memorializedAt: null }
+      : { memorialized: true, memorializedAt: new Date().toISOString() };
+
+    await updateCatDetails(catId, updates);
+    if (!isMemorialized && selectedCat === catId) setSelectedCat(null);
+  };
+
   const removeCat = async (catId, catName) => {
     if (Object.keys(cats).length <= 1) {
       setError('Add another cat before removing the last one.');
@@ -259,7 +275,7 @@ export default function CatTracker({ user, householdId }) {
 
   const checkReminders = () => {
     Object.entries(cats).forEach(([id, cat]) => {
-      if (needsReminder(cat) && cat.location === 'Outside') {
+      if (!cat.memorialized && needsReminder(cat) && cat.location === 'Outside') {
         showReminderNotification(cat.name, id);
       }
     });
@@ -288,8 +304,10 @@ export default function CatTracker({ user, householdId }) {
   };
 
   const catsNeedingReminders = Object.entries(cats).filter(([id, cat]) =>
-    needsReminder(cat) && cat.location === 'Outside'
+    !cat.memorialized && needsReminder(cat) && cat.location === 'Outside'
   );
+  const activeCats = Object.entries(cats).filter(([, cat]) => !cat.memorialized);
+  const memorialCats = Object.entries(cats).filter(([, cat]) => cat.memorialized);
 
   if (loading) {
     return (
@@ -414,7 +432,7 @@ export default function CatTracker({ user, householdId }) {
 
               <div className="space-y-2 mb-3">
                 {Object.entries(cats).map(([id, cat]) => (
-                  <div key={id} className="flex gap-2 items-center">
+                  <div key={id} className="flex flex-wrap gap-2 items-center">
                     <select
                       value={getCatEmoji(cat)}
                       onChange={(e) => updateCatDetails(id, { emoji: e.target.value })}
@@ -432,9 +450,15 @@ export default function CatTracker({ user, householdId }) {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') e.currentTarget.blur();
                       }}
-                      className="flex-1 min-w-0 px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      className="flex-1 min-w-32 px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
                       aria-label={`Name for ${cat.name}`}
                     />
+                    <button
+                      onClick={() => toggleCatMemorial(id, cat)}
+                      className="px-3 py-2 text-sm text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
+                    >
+                      {cat.memorialized ? 'Restore' : 'Memorialize'}
+                    </button>
                     <button
                       onClick={() => removeCat(id, cat.name)}
                       className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
@@ -490,7 +514,7 @@ export default function CatTracker({ user, householdId }) {
 
         {/* Cat Cards */}
         <div className="space-y-4">
-          {Object.entries(cats).map(([id, cat]) => (
+          {activeCats.map(([id, cat]) => (
             <div
               key={id}
               className="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden"
@@ -543,9 +567,35 @@ export default function CatTracker({ user, householdId }) {
           ))}
         </div>
 
+        {memorialCats.length > 0 && (
+          <div className="mt-6 border-t border-amber-200 pt-5">
+            <p className="text-center text-xs uppercase tracking-wide text-amber-500 mb-3">
+              Always with us
+            </p>
+            <div className="space-y-3">
+              {memorialCats.map(([id, cat]) => (
+                <div
+                  key={id}
+                  className="bg-amber-100/60 border border-amber-200 rounded-xl p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl opacity-80">{getCatEmoji(cat)}</span>
+                    <div>
+                      <h2 className="text-base font-semibold text-amber-900">Remembering {cat.name}</h2>
+                      <p className="text-sm text-amber-700">
+                        Still part of {householdName || 'this household'}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <p className="text-center text-amber-600 text-xs mt-6">
-          Tap a cat to update their location
+          {activeCats.length > 0 ? 'Tap a cat to update their location' : 'Open settings to add a cat'}
         </p>
       </div>
     </div>
