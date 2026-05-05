@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ref, set, onValue, increment, update } from 'firebase/database';
+import { ref, set, onValue, increment, update, remove } from 'firebase/database';
 import { signOut } from 'firebase/auth';
 import { database, auth } from './firebase';
+
+const EMOJI_OPTIONS = ['🐱', '🐈', '🐈‍⬛', '🐾', '😺', '😸', '🙀', '😻'];
 
 export default function CatTracker({ user, householdId }) {
   const [cats, setCats] = useState({});
@@ -12,6 +14,8 @@ export default function CatTracker({ user, householdId }) {
   const [selectedCat, setSelectedCat] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [newLocation, setNewLocation] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatEmoji, setNewCatEmoji] = useState('🐱');
   const [error, setError] = useState(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -130,6 +134,89 @@ export default function CatTracker({ user, householdId }) {
     } catch (e) {
       console.error('Failed to remove location:', e);
       setError('Failed to remove location');
+    }
+  };
+
+  const buildCatKey = (name) => {
+    const baseKey = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'cat';
+
+    let key = baseKey;
+    let suffix = 2;
+    while (cats[key]) {
+      key = `${baseKey}-${suffix}`;
+      suffix += 1;
+    }
+    return key;
+  };
+
+  const addCat = async () => {
+    const trimmedName = newCatName.trim();
+    if (!trimmedName) return;
+
+    const catId = buildCatKey(trimmedName);
+    const newCat = {
+      name: trimmedName,
+      emoji: newCatEmoji,
+      location: 'Unknown',
+      updatedAt: null,
+      updatedBy: null
+    };
+
+    setNewCatName('');
+    setNewCatEmoji('🐱');
+
+    try {
+      await set(ref(database, `households/${householdId}/cats/${catId}`), newCat);
+      update(ref(database), {
+        'aggregateStats/catCount': increment(1)
+      }).catch(() => {});
+    } catch (e) {
+      console.error('Failed to add cat:', e);
+      setError('Failed to add cat');
+    }
+  };
+
+  const updateCatDetails = async (catId, updates) => {
+    const currentCat = cats[catId];
+    if (!currentCat) return;
+
+    const nextCat = {
+      ...currentCat,
+      ...updates
+    };
+
+    if (!nextCat.name.trim()) {
+      setError('Cat name cannot be blank');
+      return;
+    }
+
+    try {
+      await set(ref(database, `households/${householdId}/cats/${catId}`), nextCat);
+    } catch (e) {
+      console.error('Failed to update cat:', e);
+      setError('Failed to update cat');
+    }
+  };
+
+  const removeCat = async (catId, catName) => {
+    if (Object.keys(cats).length <= 1) {
+      setError('Add another cat before removing the last one.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Remove ${catName} from this household?`);
+    if (!confirmed) return;
+
+    try {
+      await remove(ref(database, `households/${householdId}/cats/${catId}`));
+      if (selectedCat === catId) setSelectedCat(null);
+    } catch (e) {
+      console.error('Failed to remove cat:', e);
+      setError('Failed to remove cat');
     }
   };
 
@@ -319,6 +406,71 @@ export default function CatTracker({ user, householdId }) {
                   </button>
                 </span>
               ))}
+            </div>
+
+            {/* Manage Cats */}
+            <div className="border-t border-amber-200 pt-4 mt-4">
+              <h3 className="text-sm font-medium text-amber-800 mb-2">Manage Cats</h3>
+
+              <div className="space-y-2 mb-3">
+                {Object.entries(cats).map(([id, cat]) => (
+                  <div key={id} className="flex gap-2 items-center">
+                    <select
+                      value={getCatEmoji(cat)}
+                      onChange={(e) => updateCatDetails(id, { emoji: e.target.value })}
+                      className="w-14 px-2 py-2 border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      aria-label={`Emoji for ${cat.name}`}
+                    >
+                      {EMOJI_OPTIONS.map(emoji => (
+                        <option key={emoji} value={emoji}>{emoji}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      defaultValue={cat.name}
+                      onBlur={(e) => updateCatDetails(id, { name: e.target.value.trim() })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                      }}
+                      className="flex-1 min-w-0 px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      aria-label={`Name for ${cat.name}`}
+                    />
+                    <button
+                      onClick={() => removeCat(id, cat.name)}
+                      className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <select
+                  value={newCatEmoji}
+                  onChange={(e) => setNewCatEmoji(e.target.value)}
+                  className="w-14 px-2 py-2 border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  aria-label="Emoji for new cat"
+                >
+                  {EMOJI_OPTIONS.map(emoji => (
+                    <option key={emoji} value={emoji}>{emoji}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addCat()}
+                  placeholder="Add cat..."
+                  className="flex-1 min-w-0 px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                <button
+                  onClick={addCat}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
             </div>
 
             {/* Account */}
