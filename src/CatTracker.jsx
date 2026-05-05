@@ -431,7 +431,7 @@ export default function CatTracker({ user, householdId }) {
               <h3 className="text-sm font-medium text-amber-800 mb-2">Manage Cats</h3>
 
               <div className="space-y-2 mb-3">
-                {Object.entries(cats).map(([id, cat]) => (
+                {activeCats.map(([id, cat]) => (
                   <div key={id} className="flex flex-wrap gap-2 items-center">
                     <select
                       value={getCatEmoji(cat)}
@@ -453,12 +453,6 @@ export default function CatTracker({ user, householdId }) {
                       className="flex-1 min-w-32 px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
                       aria-label={`Name for ${cat.name}`}
                     />
-                    <button
-                      onClick={() => toggleCatMemorial(id, cat)}
-                      className="px-3 py-2 text-sm text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
-                    >
-                      {cat.memorialized ? 'Restore' : 'Memorialize'}
-                    </button>
                     <button
                       onClick={() => removeCat(id, cat.name)}
                       className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
@@ -495,6 +489,67 @@ export default function CatTracker({ user, householdId }) {
                   Add
                 </button>
               </div>
+            </div>
+
+            {/* Memorialized Cats */}
+            <div className="border-t border-amber-200 pt-4 mt-4">
+              <h3 className="text-sm font-medium text-amber-800 mb-2">Memorialized Cats</h3>
+
+              {memorialCats.length > 0 ? (
+                <div className="space-y-2">
+                  {memorialCats.map(([id, cat]) => (
+                    <div key={id} className="flex flex-wrap gap-2 items-center">
+                      <span className="w-14 px-2 py-2 border border-amber-200 rounded-lg bg-amber-50 text-center">
+                        {getCatEmoji(cat)}
+                      </span>
+                      <span className="flex-1 min-w-32 px-3 py-2 text-amber-900">
+                        {cat.name} (Z&quot;l)
+                      </span>
+                      <button
+                        onClick={() => toggleCatMemorial(id, cat)}
+                        className="px-3 py-2 text-sm text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => removeCat(id, cat.name)}
+                        className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-amber-600">No memorialized cats.</p>
+              )}
+
+              {activeCats.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-amber-600 mb-2">Move a cat out of active tracking:</p>
+                  <div className="flex gap-2">
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        const catId = e.target.value;
+                        if (!catId) return;
+                        toggleCatMemorial(catId, cats[catId]);
+                        e.target.value = '';
+                      }}
+                      className="flex-1 min-w-0 px-3 py-2 border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      aria-label="Choose cat to memorialize"
+                    >
+                      <option value="" disabled>Select cat...</option>
+                      {activeCats.map(([id, cat]) => (
+                        <option key={id} value={id}>{cat.name}</option>
+                      ))}
+                    </select>
+                    <span className="px-3 py-2 text-sm text-amber-600 border border-transparent">
+                      Memorialize
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Account */}
