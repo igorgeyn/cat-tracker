@@ -744,11 +744,11 @@ export default function CatTracker({ user, householdId }) {
                           <button
                             key={id}
                             onClick={() => setSelectedCat(selectedCat === id ? null : id)}
-                            className="inline-flex max-w-full items-center gap-1 rounded-full bg-[#5b2d14] px-2 py-1 text-xs text-[#fff6df] shadow-sm"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#5b2d14] text-lg text-[#fff6df] shadow-sm"
                             aria-label={`Update ${cat.name}`}
+                            title={cat.name}
                           >
                             <span>{getCatEmoji(cat)}</span>
-                            <span className="max-w-16 truncate">{cat.name}</span>
                           </button>
                         ))
                       )}
