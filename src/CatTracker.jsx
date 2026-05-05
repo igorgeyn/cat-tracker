@@ -4,14 +4,68 @@ import { signOut } from 'firebase/auth';
 import { database, auth } from './firebase';
 
 const EMOJI_OPTIONS = ['🐱', '🐈', '🐈‍⬛', '🐾', '😺', '😸', '🙀', '😻'];
-const MAP_ZONE_STYLES = [
-  'bg-amber-50 border-amber-200',
-  'bg-sky-50 border-sky-200',
-  'bg-emerald-50 border-emerald-200',
-  'bg-rose-50 border-rose-200',
-  'bg-violet-50 border-violet-200',
-  'bg-lime-50 border-lime-200'
+const MAP_LOCATION_ORDER = [
+  'outside',
+  'sideyard',
+  'catio closed',
+  'catio',
+  'inside',
+  'living room',
+  'kitchen',
+  'bedroom',
+  'unknown'
 ];
+const HOUSE_MAP_PLACEMENTS = {
+  outside: {
+    style: { left: '4%', top: '4%', width: '92%', height: '18%' },
+    className: 'bg-emerald-100 border-emerald-300'
+  },
+  sideyard: {
+    style: { left: '77%', top: '25%', width: '19%', height: '47%' },
+    className: 'bg-sky-100 border-sky-300'
+  },
+  'catio closed': {
+    style: { left: '4%', top: '75%', width: '43%', height: '18%' },
+    className: 'bg-lime-100 border-lime-300'
+  },
+  catio: {
+    style: { left: '4%', top: '75%', width: '43%', height: '18%' },
+    className: 'bg-lime-100 border-lime-300'
+  },
+  inside: {
+    style: { left: '4%', top: '25%', width: '20%', height: '47%' },
+    className: 'bg-amber-50 border-amber-300'
+  },
+  'living room': {
+    style: { left: '26%', top: '25%', width: '29%', height: '30%' },
+    className: 'bg-orange-50 border-orange-300'
+  },
+  kitchen: {
+    style: { left: '26%', top: '57%', width: '29%', height: '15%' },
+    className: 'bg-violet-50 border-violet-300'
+  },
+  bedroom: {
+    style: { left: '57%', top: '25%', width: '18%', height: '47%' },
+    className: 'bg-rose-50 border-rose-300'
+  },
+  unknown: {
+    style: { left: '49%', top: '75%', width: '47%', height: '18%' },
+    className: 'bg-stone-50 border-stone-300'
+  }
+};
+const FALLBACK_MAP_PLACEMENTS = [
+  { left: '4%', top: '25%', width: '28%', height: '22%' },
+  { left: '34%', top: '25%', width: '28%', height: '22%' },
+  { left: '64%', top: '25%', width: '32%', height: '22%' },
+  { left: '4%', top: '50%', width: '28%', height: '22%' },
+  { left: '34%', top: '50%', width: '28%', height: '22%' },
+  { left: '64%', top: '50%', width: '32%', height: '22%' },
+  { left: '4%', top: '75%', width: '44%', height: '18%' },
+  { left: '52%', top: '75%', width: '44%', height: '18%' }
+];
+
+const normalizeLocation = (location) =>
+  location.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 export default function CatTracker({ user, householdId }) {
   const [cats, setCats] = useState({});
@@ -322,6 +376,14 @@ export default function CatTracker({ user, householdId }) {
       .map(([, cat]) => cat.location)
       .filter(location => location && !locations.includes(location))
   ];
+  const orderedMapLocationNames = [...mapLocationNames].sort((a, b) => {
+    const aIndex = MAP_LOCATION_ORDER.indexOf(normalizeLocation(a));
+    const bIndex = MAP_LOCATION_ORDER.indexOf(normalizeLocation(b));
+    if (aIndex === -1 && bIndex === -1) return 0;
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
   const catsByLocation = activeCats.reduce((groups, [id, cat]) => {
     const location = cat.location || 'Unknown';
     return {
@@ -329,11 +391,14 @@ export default function CatTracker({ user, householdId }) {
       [location]: [...(groups[location] || []), [id, cat]]
     };
   }, {});
-  const getMapZoneStyle = (location, index) => {
-    const normalized = location.toLowerCase();
-    if (normalized === 'outside') return 'bg-emerald-50 border-emerald-300';
-    if (normalized === 'unknown') return 'bg-stone-50 border-stone-200';
-    return MAP_ZONE_STYLES[index % MAP_ZONE_STYLES.length];
+  const getMapZone = (location, index) => {
+    const knownPlacement = HOUSE_MAP_PLACEMENTS[normalizeLocation(location)];
+    if (knownPlacement) return knownPlacement;
+
+    return {
+      style: FALLBACK_MAP_PLACEMENTS[index % FALLBACK_MAP_PLACEMENTS.length],
+      className: 'bg-amber-50 border-amber-300'
+    };
   };
 
   if (loading) {
@@ -649,34 +714,39 @@ export default function CatTracker({ user, householdId }) {
           ))}
         </div>
 
-        {activeCats.length > 0 && mapLocationNames.length > 0 && (
+        {activeCats.length > 0 && orderedMapLocationNames.length > 0 && (
           <div className="mt-6 bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
             <div className="px-4 py-3 border-b border-amber-200">
               <h2 className="text-sm font-semibold text-amber-900">House Map</h2>
             </div>
-            <div className="grid grid-cols-2 gap-2 p-3 bg-amber-50">
-              {mapLocationNames.map((location, index) => {
+            <div className="p-3 bg-amber-50">
+              <div className="relative aspect-[4/3] min-h-72 rounded-xl border-2 border-amber-300 bg-[#f8edd6] shadow-inner overflow-hidden">
+                <div className="absolute left-[2%] top-[2%] h-[96%] w-[96%] rounded-lg border border-dashed border-amber-300 pointer-events-none" />
+                <div className="absolute left-[24%] top-[23%] h-[51%] w-[53%] rounded-sm border-4 border-amber-700/40 bg-white/25 pointer-events-none" />
+                {orderedMapLocationNames.map((location, index) => {
                 const locationCats = catsByLocation[location] || [];
+                const zone = getMapZone(location, index);
                 return (
                   <div
                     key={location}
-                    className={`min-h-24 rounded-lg border p-3 ${getMapZoneStyle(location, index)}`}
+                    style={zone.style}
+                    className={`absolute rounded-lg border-2 p-2 shadow-sm ${zone.className}`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-amber-900 leading-tight">{location}</h3>
+                    <div className="flex items-start justify-between gap-1">
+                      <h3 className="text-xs font-semibold text-amber-900 leading-tight">{location}</h3>
                       <span className="text-xs text-amber-600">{locationCats.length || ''}</span>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-1">
                       {locationCats.length > 0 ? (
                         locationCats.map(([id, cat]) => (
                           <button
                             key={id}
                             onClick={() => setSelectedCat(selectedCat === id ? null : id)}
-                            className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-white px-2 py-1 text-sm text-amber-900 shadow-sm"
+                            className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/90 border border-white px-2 py-1 text-xs text-amber-900 shadow-sm"
                             aria-label={`Update ${cat.name}`}
                           >
                             <span>{getCatEmoji(cat)}</span>
-                            <span className="max-w-20 truncate">{cat.name}</span>
+                            <span className="max-w-16 truncate">{cat.name}</span>
                           </button>
                         ))
                       ) : (
@@ -685,7 +755,8 @@ export default function CatTracker({ user, householdId }) {
                     </div>
                   </div>
                 );
-              })}
+                })}
+              </div>
             </div>
           </div>
         )}
